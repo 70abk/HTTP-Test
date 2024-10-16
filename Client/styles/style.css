@@ -1,0 +1,42 @@
+html {
+	min-height: 100vh;
+}
+body {
+	background-image: url('../files/bg.png');
+	background-size: auto 100%;
+	background-position: bottom center;
+}
+
+p {
+  color: red;
+}
+
+#mainlogo {
+	display: block;
+	margin: 0 auto;
+	max-width: 100%;
+	height: auto;
+}
+
+#hakbun {
+	width: 200px;
+}
+
+#uploadBtn {
+	background-color: #4CAF50;
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	text-align: center;
+	text-decoration: none;
+	display: inline-block;
+	font-size: 16px;
+	margin: 4px 2px;
+	cursor: pointer;
+	border-radius: 5px;
+	transition: background-color 0.3s;
+}
+
+#uploadBtn:hover {
+	background-color: #45a049;
+}
