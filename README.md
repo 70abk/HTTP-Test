@@ -1,2 +1,3 @@
 # HTTP-Test
 A simple website for testing HTTP Protocol between Client and Server.
+This is a simple website for testing HTTP Protocol between Client and Server. I made it for studying. (Not even regular class btw) Beware of design, It is awful!
