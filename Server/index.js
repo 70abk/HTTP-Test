@@ -4,9 +4,11 @@ const path = require('path');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
 
-// 업로드 경로와 파일이름 설정
+app.use(cors());
+// 정적 파일(css, js 등)을 위해 현재 디렉토리를 static으로 지정
+app.use(express.static(__dirname));
+
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, 'uploads/');
@@ -20,6 +22,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+// index.html 전송
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // 파일 업로드 처리
 app.post('/upload', upload.single('hwfile'), (req, res) => {
     if (!req.file) {
@@ -32,12 +39,6 @@ app.post('/upload', upload.single('hwfile'), (req, res) => {
     });
 });
 
-// 기본 응답
-app.get('/', (req, res) => {
-    res.send('서버가 정상 작동 중입니다.');
-});
-
-// 서버 실행
 app.listen(3000, () => {
     console.log('서버가 http://localhost:3000 에서 실행 중입니다.');
 });
