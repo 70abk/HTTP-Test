@@ -7,33 +7,34 @@ document.getElementById('uploadBtn').addEventListener('click', function () {
     //학번 입력 확인
     const hakbun = hakbunInput.value.trim();
     if (!hakbun) {
-        alert("학번 이름을 입력해주세요."); 
+        alert("학번 이름을 입력해주세요.");
         return;
     }
 
     //파일 선택 확인
     if (!file) {
-        alert("파일을 선택하세요."); 
+        alert("파일을 선택하세요.");
         return;
     }
 
     //파일 이름 설정
-    const b4Name = file.name; 
-    const noDot = b4Name.split('.'); 
+    const b4Name = file.name;
+    const noDot = b4Name.split('.');
     noDot.pop();
     const FileName = `${hakbun}_${noDot.join('.')}`;
 
     //formData 설정
     const formData = new FormData();
-    formData.append('hakbun', FileName); 
+    formData.append('hakbun', FileName);
     formData.append('hwfile', file);
     uploadBtn.disabled = true;
 
     // 서버 파일 전송
-    fetch('http://(IP)/upload', { // Change (IP) to your server IP
+    fetch('/upload', {
         method: 'POST',
         body: formData
     })
+
         .then(response => response.json())
         .then(data => {
             console.log('성공:', data);
