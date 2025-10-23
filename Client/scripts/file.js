@@ -30,9 +30,11 @@ document.getElementById('uploadBtn').addEventListener('click', function () {
     uploadBtn.disabled = true;
 
     // 서버 파일 전송
-    fetch('/upload', {
+    const baseUrl = window.location.origin;
+    fetch(`${baseUrl}/upload`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        credentials: 'include'
     })
 
         .then(response => response.json())
