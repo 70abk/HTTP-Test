@@ -1,5 +1,3 @@
-import os
-
 input_filename = "upload.jpg"
 output_filename = "repaired_image.jpg"
 
