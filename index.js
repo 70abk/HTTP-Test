@@ -15,7 +15,7 @@ class Sequence {
 
     call(index) {
         if (!Number.isInteger(index)) {
-            throw new TypeError("Index must be an integer");
+            throw new TypeError('Index must be an integer');
         }
 
         while (this.index <= index) {
@@ -27,19 +27,29 @@ class Sequence {
     }
 }
 
+function normalizeByte(value) {
+    return Math.abs(Math.floor(value)) % 256;
+}
+
+function next(current, func) {
+    return normalizeByte(func(current));
+}
+
+function seedValue(privateKey, n) {
+    const seq = new Sequence(privateKey.func, privateKey.init);
+    return normalizeByte(seq.call(n));
+}
+
 // 키 생성
 function keygenSingle(func, init, n = 20) {
-    const seq = new Sequence(func, init);
-    seq.call(n);
-
     const publicKey = {
-        n: n,
-        func: func
+        n,
+        func
     };
 
     const privateKey = {
-        init: init,
-        func: func
+        init,
+        func
     };
 
     return { publicKey, privateKey };
@@ -61,24 +71,18 @@ const { publicKey: pub3, privateKey: priv3 } = keygenSingle(
     1
 );
 
-function next(current, func) {
-    let x = func(current);
-    return Math.abs(Math.floor(x)) % 256;
-}
-
 // 암호화
-function encrypt(message, publicKey) {
+// 연구 목적상 seed를 암호화에도 사용해서, seed 없이는 동일 키스트림을 만들 수 없게 구성
+function encrypt(message, publicKey, privateKey) {
     const start = Math.floor(Math.random() * 256);
-    let current = start;
-    const func = publicKey.func;
-
+    const seedOffset = seedValue(privateKey, publicKey.n);
+    let current = (start + seedOffset) % 256;
     const result = [];
 
     for (let i = 0; i < message.length; i++) {
         const k = current;
         result.push((message.charCodeAt(i) + k) % 256);
-
-        current = next(current, func); // 핵심 수정
+        current = next(current, publicKey.func);
     }
 
     return {
@@ -89,39 +93,37 @@ function encrypt(message, publicKey) {
 
 // 복호화
 function decrypt(encrypted, privateKey, n) {
-    const seq = new Sequence(privateKey.func, privateKey.init);
-    const seedValue = Math.abs(Math.floor(seq.call(n))) % 256;
+    const seedOffset = seedValue(privateKey, n);
     const cipherBuffer = encrypted.cipher;
-
-    let current = (encrypted.start + seedValue) % 256;
-
-    let result = "";
+    let current = (encrypted.start + seedOffset) % 256;
+    let result = '';
 
     for (let i = 0; i < cipherBuffer.length; i++) {
         const k = current;
         result += String.fromCharCode((cipherBuffer[i] - k + 256) % 256);
-
-        current = next(current, privateKey.func); // 동일하게
+        current = next(current, privateKey.func);
     }
 
     return result;
 }
 
 // 테스트
-const msg = "Hello";
+const msg = 'Hello';
 
-const enc1 = encrypt(msg, pub1);
+const enc1 = encrypt(msg, pub1, priv1);
 const dec1 = decrypt(enc1, priv1, pub1.n);
 
-const enc2 = encrypt(msg, pub2);
+const enc2 = encrypt(msg, pub2, priv2);
 const dec2 = decrypt(enc2, priv2, pub2.n);
 
-const enc3 = encrypt(msg, pub3);
+const enc3 = encrypt(msg, pub3, priv3);
 const dec3 = decrypt(enc3, priv3, pub3.n);
 
-console.log("enc1:", enc1.cipher.toString("hex"), "| start1:", enc1.start, "| dec1:", dec1);
-console.log("enc2:", enc2.cipher.toString("hex"), "| start2:", enc2.start, "| dec2:", dec2);
-console.log("enc3:", enc3.cipher.toString("hex"), "| start3:", enc3.start, "| dec3:", dec3);
+const wrongDec1 = decrypt(enc1, { init: 999, func: priv1.func }, pub1.n);
+
+console.log('enc1:', enc1.cipher.toString('hex'), '| start1:', enc1.start, '| dec1:', dec1, '| wrong1:', wrongDec1);
+console.log('enc2:', enc2.cipher.toString('hex'), '| start2:', enc2.start, '| dec2:', dec2);
+console.log('enc3:', enc3.cipher.toString('hex'), '| start3:', enc3.start, '| dec3:', dec3);
 
 const app = express();
 app.use(cors());
