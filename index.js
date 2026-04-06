@@ -4,6 +4,7 @@ const path = require('path');
 const cors = require('cors');
 const http = require('http');
 const cookieParser = require('cookie-parser');
+const fs = require('fs/promises');
 
 // sequence 클래스
 class Sequence {
@@ -40,6 +41,37 @@ function seedValue(privateKey, n) {
     return normalizeByte(seq.call(n));
 }
 
+function decryptBytes(cipherBuffer, privateKey, n, start) {
+    const seedOffset = seedValue(privateKey, n);
+    let current = (start + seedOffset) % 256;
+    let feedback = start;
+    const plainBuffer = Buffer.alloc(cipherBuffer.length);
+
+    for (let i = 0; i < cipherBuffer.length; i++) {
+        const k = (current + feedback + i) % 256;
+        plainBuffer[i] = (cipherBuffer[i] - k + 256) % 256;
+        feedback = cipherBuffer[i];
+        current = next(current, privateKey.func);
+    }
+
+    return plainBuffer;
+}
+
+function deriveSeedFromHakbun(hakbun) {
+    return hakbun.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 256;
+}
+
+function extractStudentId(hakbunField) {
+    return String(hakbunField || '').split('_')[0] || '';
+}
+
+function getFuncById(funcId) {
+    if (funcId === 'lin-v1') {
+        return x => 2 * x + 3;
+    }
+    return null;
+}
+
 // 키 생성
 function keygenSingle(func, init, n = 20) {
     const publicKey = {
@@ -72,16 +104,18 @@ const { publicKey: pub3, privateKey: priv3 } = keygenSingle(
 );
 
 // 암호화
-// 연구 목적상 seed를 암호화에도 사용해서, seed 없이는 동일 키스트림을 만들 수 없게 구성
 function encrypt(message, publicKey, privateKey) {
     const start = Math.floor(Math.random() * 256);
     const seedOffset = seedValue(privateKey, publicKey.n);
     let current = (start + seedOffset) % 256;
+    let feedback = start;
     const result = [];
 
     for (let i = 0; i < message.length; i++) {
-        const k = current;
-        result.push((message.charCodeAt(i) + k) % 256);
+        const k = (current + feedback + i) % 256;
+        const c = (message.charCodeAt(i) + k) % 256;
+        result.push(c);
+        feedback = c;
         current = next(current, publicKey.func);
     }
 
@@ -96,11 +130,13 @@ function decrypt(encrypted, privateKey, n) {
     const seedOffset = seedValue(privateKey, n);
     const cipherBuffer = encrypted.cipher;
     let current = (encrypted.start + seedOffset) % 256;
+    let feedback = encrypted.start;
     let result = '';
 
     for (let i = 0; i < cipherBuffer.length; i++) {
-        const k = current;
+        const k = (current + feedback + i) % 256;
         result += String.fromCharCode((cipherBuffer[i] - k + 256) % 256);
+        feedback = cipherBuffer[i];
         current = next(current, privateKey.func);
     }
 
@@ -149,14 +185,61 @@ app.get('/', (req, res) => {
 });
 
 // 파일 업로드 처리
-app.post('/upload', upload.single('hwfile'), (req, res) => {
+app.post('/upload', upload.single('hwfile'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: '파일이 업로드되지 않았습니다.' });
     }
 
+    let decryptedFilename = null;
+
+    try {
+        const startRaw = req.body.cryptoStart;
+        const nRaw = req.body.cryptoN;
+        const funcId = req.body.cryptoFuncId;
+
+        if (startRaw !== undefined && nRaw !== undefined && funcId !== undefined) {
+            const start = Number(startRaw);
+            const n = Number(nRaw);
+            const func = getFuncById(funcId);
+
+            if (!Number.isInteger(start) || start < 0 || start > 255) {
+                return res.status(400).json({ message: 'cryptoStart 값이 올바르지 않습니다.' });
+            }
+
+            if (!Number.isInteger(n) || n < 1) {
+                return res.status(400).json({ message: 'cryptoN 값이 올바르지 않습니다.' });
+            }
+
+            if (!func) {
+                return res.status(400).json({ message: '지원하지 않는 cryptoFuncId 입니다.' });
+            }
+
+            const studentId = extractStudentId(req.body.hakbun);
+            if (!studentId) {
+                return res.status(400).json({ message: '학번 정보를 찾을 수 없습니다.' });
+            }
+
+            const privateKey = {
+                init: deriveSeedFromHakbun(studentId),
+                func
+            };
+
+            const cipherBuffer = await fs.readFile(req.file.path);
+            const plainBuffer = decryptBytes(cipherBuffer, privateKey, n, start);
+
+            const parsed = path.parse(req.file.filename);
+            decryptedFilename = `${parsed.name}_decrypted.bin`;
+            const decryptedPath = path.join(path.dirname(req.file.path), decryptedFilename);
+            await fs.writeFile(decryptedPath, plainBuffer);
+        }
+    } catch (error) {
+        return res.status(500).json({ message: '복호화 처리 중 오류가 발생했습니다.', error: error.message });
+    }
+
     res.json({
         message: '파일이 성공적으로 업로드되었습니다.',
-        filename: req.file.filename
+        filename: req.file.filename,
+        decryptedFilename
     });
 });
 
